@@ -8,14 +8,34 @@
 
 
 
+char save[10][20];
+int turn_num;
+
+
 char cmd[40]="";		
 char *arg[10]={NULL};		
-char addr[40]="";	
+char addr[40]="";		
 int cn=0;			
-NODE *head=NULL;		
+
 pid_t PID;			
 
 
+
+int NUM;
+typedef struct node
+{
+	int num;
+	pid_t pid;
+	char state[10];
+	char comand[40];
+	struct node *next;
+}NODE;
+
+
+NODE *head=NULL;		//jobs链表的首地址
+
+
+int f=0;
 //-------------------------------主函数-------------------------------
 
 int main()
@@ -143,6 +163,32 @@ int main()
 	}
 }
 
+static struct termios stored_settings;
+
+void set_keypress(void)
+{
+    struct termios new_settings;
+
+    tcgetattr(0,&stored_settings);
+
+    new_settings = stored_settings;
+
+    /* Disable canonical mode, and set buffer size to 1 byte */
+    new_settings.c_lflag &= (~ICANON);
+    new_settings.c_lflag &= (~ECHO);
+    new_settings.c_cc[VTIME] = 0;
+    new_settings.c_cc[VMIN] = 1;
+
+    tcsetattr(0,TCSANOW,&new_settings);
+    return;
+}
+
+
+void reset_keypress(void)
+{
+    tcsetattr(0,TCSANOW,&stored_settings);
+    return;
+}
 
 
 
