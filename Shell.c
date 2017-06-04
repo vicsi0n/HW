@@ -1,11 +1,12 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <fcntl.h>
+#include <stdio.h>//C语言输入输出库
+#include <unistd.h>//类UNIX操作系统POSIX的API原句
+#include <string.h>//C语言字符串操作库
+#include <fcntl.h>//文件操作
 #include <stdlib.h>
-#include <sys/wait.h>
-#include <signal.h>
-#include <pwd.h>
+
+#include <sys/wait.h>//调用系统的阻塞等待函数
+#include <signal.h>//信号处理
+#include <pwd.h>//提供了passwd这个用户基本信息的结构体
 
 #include <libgen.h>
 #include <sys/types.h>
@@ -24,7 +25,7 @@ char lastdir[100];
 
 
 
-//-------------------------------set_prompt-------------------------------
+//-------------------------------设置提示符-------------------------------
 
 void set_prompt(char* prompt){
 	
@@ -36,7 +37,7 @@ void set_prompt(char* prompt){
 	sprintf(prompt,"%s@%s:~$ ",user->pw_name,current_dir);//显示提示符,用到了pwd.h
 }
 
-//-------------------------------init_lastdir-------------------------------
+//-------------------------------记录当前地址-------------------------------
 
 void init_lastdir()
 {
@@ -44,7 +45,7 @@ void init_lastdir()
 }
 
 
-//-------------------------------history-------------------------------
+//-------------------------------存入历史命令-------------------------------
 
 void history_setup()
 {
@@ -73,7 +74,7 @@ void display_history_list()
 
 
 
-//-------------------------------main-------------------------------
+//-------------------------------主函数-------------------------------
 
 int main()
 {
@@ -89,7 +90,7 @@ int main()
   {
 
   	set_prompt(prompt);//创建提示符
-	line = readline(prompt);
+	line = readline(prompt);//读取提示符
  		if (!line)
  		{
  			break; 
@@ -103,7 +104,7 @@ int main()
 
  		myptr = buf;
 		mylim = buf+strlen(buf);
-	yylex();
+	yylex();//进行词法分析
   }
    		
   	history_finish();
