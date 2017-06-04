@@ -5,199 +5,111 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <pwd.h>
+
+#include <libgen.h>
+#include <sys/types.h>
+
+#include <readline/readline.h>
+#include <readline/history.h>
+
+extern void yylex();
+int get_current_dir_name();//获得当前路径
+struct passwd *user;//存取当前用户信息
+char *current_dir;//获得当前路径
+char buf[BUFSIZ];//BUFSIZ为系统默认的缓冲区大小。
+char* myptr;
+char* mylim;
+char lastdir[100];
 
 
 
-char save[10][20];
-int turn_num;
+//-------------------------------set_prompt-------------------------------
 
-
-char cmd[40]="";		
-char *arg[10]={NULL};		
-char addr[40]="";		
-int cn=0;			
-
-pid_t PID;			
-
-
-
-int NUM;
-typedef struct node
-{
-	int num;
-	pid_t pid;
-	char state[10];
-	char comand[40];
-	struct node *next;
-}NODE;
-
-
-NODE *head=NULL;		//jobs链表的首地址
-
-
-int f=0;
-//-------------------------------主函数-------------------------------
-
-int main()
-{
-	int i=0;
-	int j=0;
-	int key=0;			      
-	int flag=0;
-	NODE *pi=NULL;
-	pid_t pid;		
-	getcwd(addr,40);			
-	while(1)
-	{
-		j=0;
-		printf("Shell@%s> ",get_current_dir_name());
-		memset(cmd,0,40);		
-		set_keypress();			//设置输入的模式
+void set_prompt(char* prompt){
 	
-		while(1)				//输入命令
-		{
-			key=getchar();
-			if(key == 27)		
-			{
-				history();
-			}
-			else if(key == 127)		
-			{
-				cmd[--j] = '\0';
-				printf("\r");
-				printf("\rShell@%s> %s",get_current_dir_name(),cmd);
-			}
-			else if(key == 10)	//键入Enter时，保存命令
-			{
-				save_cmd();
-				break;
-			}
-			else			
-			{
-				printf("%c",key);
-				cmd[j++]=(char)key;
-			}
-		}
-		printf("\n");	
-		reset_keypress();		//恢复标准模式
-		strcpy(cmd,addBlank(cmd));	
-		cn=my_strstr(cmd,arg);		//以空格分割命令行
-		if(arg[0] != NULL)
-		{
-			if(isincmd(arg) == 1)			//执行内部命令
-			{
-				continue;
-			}
-			else if(strcmp(arg[0],"jobs") == 0)		//执行jobs命令
-			{
-				output_jobs();
-			}
-			else if(strcmp(arg[0],"fg") == 0)			//执行fg命令
-			{
-				fg_jobs();	
-			}
-			else if(strcmp(arg[0],"bg") == 0)			//执行bg命令
-			{
-				bg_jobs();
-			}
-			else
-			{
-				if(arg[1] != NULL)
-				{
-					
-					if(strcmp(arg[1],"&") == 0)//在后台执行命令
-					{
-						flag=1;	
-						pi=(NODE *)malloc(sizeof(NODE));
-						pi->num=NUM;
-						pi->pid=getpid();
-						strcpy(pi->state,"stopped");
-						strcpy(pi->comand,arg[0]);
-						head=jobs_link(pi);//将此后台执行的命令添加到jobs链表中
-					}
-				}
-				if((pid=fork()) < 0)	//创建子进程
-				{
-					perror("fork error!\n");
-					exit (1);
-				}
-				if(pid == 0)
-				{
-					i=check();
-					switch(i)
-					{
-						case 1:
-							redirect();//执行类似"cat>text"的重定向命令
-							break;
-						case 2:		  //执行类似"cat>>text"的重定向命令
-							redirect_cat();
-							break;
-						case 3:	      //执行类似"cat>test<text"的重定向命令
-							redirect_a();
-							break;
-						case 4:	//执行类似"cat>>test<text"的重定向命令
-							redirect_cat_a();
-							break;
-						case 5:	//执行管道命令
-							my_pipe();
-							break;
-						default:
-							execvp(arg[0],arg);//执行普通的外部命令
-							break;
-					}
-				}
-				else
-				{
-					PID=pid;
-					if(flag == 1)	//执行后台命令，父进程不等待子进程
-					{
-						;
-					}
-					else	        //执行前台命令，父进程等待子进程
-					{
-						waitpid(pid,NULL,WUNTRACED);
-					}
-				}
-			}
+
+	current_dir=getcwd(NULL,100);//获取当前路径
+
+	user = getpwuid(getuid());//获得当前用户名
+
+	sprintf(prompt,"%s@%s:~$ ",user->pw_name,current_dir);//显示提示符,用到了pwd.h
+}
+
+//-------------------------------init_lastdir-------------------------------
+
+void init_lastdir()
+{
+	getcwd(lastdir, 99);
+}
+
+
+//-------------------------------history-------------------------------
+
+void history_setup()
+{
+	using_history();
+	stifle_history(50);
+	read_history("/tmp/msh_history");	
+}
+
+void history_finish()
+{
+	append_history(history_length, "/tmp/msh_history");
+	history_truncate_file("/tmp/msh_history", history_max_entries);
+}
+
+void display_history_list()
+{
+	HIST_ENTRY** h = history_list();
+	if(h) {
+		int i = 0;
+		while(h[i]) {
+			printf("%d: %s\n", i, h[i]->line);
+			i++;
 		}
 	}
 }
 
-static struct termios stored_settings;
 
-void set_keypress(void)
+
+//-------------------------------main-------------------------------
+
+int main()
 {
-    struct termios new_settings;
+	
+	char* line;
+	char prompt[200];
+	signal(SIGINT, SIG_IGN);
+	
+	//printf("%s",prompt);
+	init_lastdir();
+	history_setup();	
+	while(1)
+  {
 
-    tcgetattr(0,&stored_settings);
+  	set_prompt(prompt);//创建提示符
+	line = readline(prompt);
+ 		if (!line)
+ 		{
+ 			break; 
+ 		}
+ 		else if (*line)
+ 		{
+ 			add_history(line);
+ 		}
+ 		strcpy(buf,line);
+ 		strcat(buf,"\n");
 
-    new_settings = stored_settings;
-
-    /* Disable canonical mode, and set buffer size to 1 byte */
-    new_settings.c_lflag &= (~ICANON);
-    new_settings.c_lflag &= (~ECHO);
-    new_settings.c_cc[VTIME] = 0;
-    new_settings.c_cc[VMIN] = 1;
-
-    tcsetattr(0,TCSANOW,&new_settings);
-    return;
+ 		myptr = buf;
+		mylim = buf+strlen(buf);
+	yylex();
+  }
+   		
+  	history_finish();
+	
+	return 0;
 }
-
-
-void reset_keypress(void)
-{
-    tcsetattr(0,TCSANOW,&stored_settings);
-    return;
-}
-
-
-
-
-
-
-
-
-
 
 
 
