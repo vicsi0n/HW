@@ -3,7 +3,7 @@ CFLAGS=-g -Wall
 SRC=Shell.c lex.yy.c
 
 all:
-	flex Shell.l
+	flex Shell_lex.l
 	$(CC) $(CFLAGS) -o shell $(SRC) -lfl -lreadline -ltermcap
 
 clean:
