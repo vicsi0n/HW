@@ -10,6 +10,8 @@
 
 #include <libgen.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
 
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -19,8 +21,8 @@ int get_current_dir_name();//获得当前路径
 struct passwd *user;//存取当前用户信息
 char *current_dir;//获得当前路径
 char buf[BUFSIZ];//BUFSIZ为系统默认的缓冲区大小。
-char* myptr;
-char* mylim;
+char* input_start;
+char* input_end;
 char lastdir[100];
 
 
@@ -45,22 +47,22 @@ void init_lastdir()
 }
 
 
-//-------------------------------存入历史命令-------------------------------
+//-------------------------------历史命令操作-------------------------------
 
-void history_setup()
+void history_setup()//读取历史命令
 {
 	using_history();
 	stifle_history(50);
-	read_history("/tmp/msh_history");	
+	read_history("/tmp/shell_history");	
 }
 
 void history_finish()
 {
-	append_history(history_length, "/tmp/msh_history");
-	history_truncate_file("/tmp/msh_history", history_max_entries);
+	append_history(history_length, "/tmp/shell_history");
+	history_truncate_file("/tmp/shell_history", history_max_entries);
 }
 
-void display_history_list()
+void display_history_list()//显示历史命令
 {
 	HIST_ENTRY** h = history_list();
 	if(h) {
@@ -79,7 +81,7 @@ void display_history_list()
 int main()
 {
 	
-	char* line;
+	char* input;
 	char prompt[200];
 	signal(SIGINT, SIG_IGN);
 	
@@ -90,20 +92,25 @@ int main()
   {
 
   	set_prompt(prompt);//创建提示符
-	line = readline(prompt);//读取提示符
- 		if (!line)
+	input = readline(prompt);//显示提示符并读取输入
+
+ 		if (!input)//检测EOF（-1）终止程序
  		{
  			break; 
  		}
- 		else if (*line)
+ 		else if (*input)
  		{
- 			add_history(line);
+ 			add_history(input);//将输入添加到历史命令记录
  		}
- 		strcpy(buf,line);
+ 		strcpy(buf,input);//将输入传给buf
  		strcat(buf,"\n");
 
- 		myptr = buf;
-		mylim = buf+strlen(buf);
+ 		//free(input);
+
+ 		input_start = buf;
+		input_end = buf+strlen(buf);
+		//printf("=%s+\n",input_start);
+
 	yylex();//进行词法分析
   }
    		
@@ -113,5 +120,74 @@ int main()
 }
 
 
+
+
+//-------------------------------自定义lex的YY_INPUT-------------------------------
+
+ int YYinput(char* buf, int max)
+{
+	int n;
+	n = (max < (input_end-input_start)) ? max : (input_end-input_start);
+
+	if(n > 0) {
+		memcpy(buf, input_start, n);
+
+		input_start += n;
+	}
+	return n;
+}
+
+
+
+//-------------------------------显示命令历史信息-------------------------------
+
+
+int shell_history(int argc, char** argv)
+{
+	display_history_list();	
+	return 0;
+}
+
+//-------------------------------退出shell解释器-------------------------------
+
+ int shell_exit(int argc, char** argv)
+{
+
+}
+
+
+
+//-------------------------------改变目录-------------------------------
+
+
+ int shell_cd(int argc, char** argv)
+{
+	
+}
+
+
+
+//-------------------------------导入或显示环境变量-------------------------------
+
+
+ int shell_export(int argc, char** argv)
+{
+	
+}
+
+
+
+//-------------------------------回显-------------------------------
+
+
+ int shell_echo(int argc, char** argv)
+{
+	
+}
+
+
+
+
+ 
 
 
