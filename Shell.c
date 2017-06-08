@@ -1,20 +1,7 @@
-#include <stdio.h>//C语言输入输出库
-#include <unistd.h>//类UNIX操作系统POSIX的API原句
-#include <string.h>//C语言字符串操作库
-#include <fcntl.h>//文件操作
-#include <stdlib.h>
 
-#include <sys/wait.h>//调用系统的阻塞等待函数
-#include <signal.h>//信号处理
-#include <pwd.h>//提供了passwd这个用户基本信息的结构体
+#include "include.h"
 
-#include <libgen.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <errno.h>
 
-#include <readline/readline.h>
-#include <readline/history.h>
 
 extern void yylex();
 int get_current_dir_name();//获得当前路径
@@ -24,6 +11,9 @@ char buf[BUFSIZ];//BUFSIZ为系统默认的缓冲区大小。
 char* input_start;
 char* input_end;
 char lastdir[100];
+
+char* argbuf[200];
+int argcnt = 0;
 
 
 
@@ -148,32 +138,46 @@ int shell_history(int argc, char** argv)
 	return 0;
 }
 
-//-------------------------------退出shell解释器-------------------------------
-
- int shell_exit(int argc, char** argv)
-{
-
-}
-
 
 
 //-------------------------------改变目录-------------------------------
 
 
- int shell_cd(int argc, char** argv)
+int shell_cd(int argc, char** argv)
 {
-	
+	char* dir;
+	char cwd[100];
+	extern char lastdir[];
+
+	if(argc == 1) {
+		if(!(dir = getenv("HOME"))) {
+			printf("cd: %s\n", strerror(errno));
+			return -1;
+		}
+	} else if(argc == 2) {
+		if(strcmp(argv[1], "-") == 0) {
+			dir = lastdir;
+		} else if(strcmp(argv[1], "~") == 0) {
+			if(!(dir = getenv("HOME"))) {
+				printf("cd: %s\n", strerror(errno));
+				return -1;
+			}
+		} else
+			dir = argv[1];
+	} else {
+		printf("Usage: cd [dir]\n");
+		return -1;
+	}
+	getcwd(cwd, 99); 
+	if(chdir(dir) == -1) {
+		printf("cd: %s\n", strerror(errno));
+		return -1;
+	}
+	strcpy(lastdir, cwd);
+	return 0;
 }
 
 
-
-//-------------------------------导入或显示环境变量-------------------------------
-
-
- int shell_export(int argc, char** argv)
-{
-	
-}
 
 
 
@@ -182,8 +186,93 @@ int shell_history(int argc, char** argv)
 
  int shell_echo(int argc, char** argv)
 {
+	int i = 1;
+	int j;
+	int argn = 0;
+	int arge = 0;
+	if(argv[1]) {
+		if(strcmp(argv[1], "-n") == 0) {
+			argn = 1;
+			i = 2;
+		} else if(strcmp(argv[1], "-e") == 0) {
+			arge = 1;
+			i = 2;
+		} else if((strcmp(argv[1], "-ne") == 0) || (strcmp(argv[1], "-en") == 0)) {
+			argn = arge = 1;
+			i = 2;
+		}
+	}
+	j = i;
+	while(argv[i]) {
+		if(i > j)
+			printf(" %s", argv[i]);
+		else 
+			printf("%s", argv[i]);
+		i++;
+	}
+	if(argn == 0)
+		printf("\n");
 	
+	return 0;
 }
+
+
+ 
+//-------------------------------导入或显示环境变量-------------------------------
+
+int shell_export(int argc, char** argv)
+{
+	int i = 1;
+	char* p;
+	while(argv[i]) {
+		if((p = strchr(argv[i], '='))) {
+			*p = 0;
+			if(strpbrk(argv[i], "~`!@#$%^&*()-_+=|\\{}[];:'\"<>,.?/")) {
+				*p = '=';
+				printf("export: %s: not a valid indentifier\n", argv[i]);
+				i++;
+				continue;
+			} 
+
+			if(setenv(argv[i], p+1, 1) == -1) 
+				printf("export: %s\n", strerror(errno));
+			*p = '=';
+		}
+		i++;		
+	}
+	return 0;
+}
+
+
+
+//-------------------------------清空参数-------------------------------
+ void reset_args()
+{
+	int i;
+	for(i = 0; i < argcnt; i++) {
+		free(argbuf[i]);
+		argbuf[i] = 0;
+	}
+	argcnt = 0;
+}
+
+
+
+
+
+//-------------------------------退出shell解释器-------------------------------
+
+int shell_exit(int argc, char** argv)
+{
+	int val = 0;
+	if(argc > 1)
+		val = atoi(argv[1]);
+	reset_args();
+	history_finish();
+	exit(val);
+	return 0;
+}
+
 
 
 
