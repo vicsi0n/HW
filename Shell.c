@@ -5,12 +5,14 @@
 
 extern void yylex();
 int get_current_dir_name();//获得当前路径
+
 struct passwd *user;//存取当前用户信息
+
 char *current_dir;//获得当前路径
 char buf[BUFSIZ];//BUFSIZ为系统默认的缓冲区大小。
-char* input_start;
-char* input_end;
-char lastdir[100];
+char* input_start;//输入的字符串的首指针
+char* input_end;//输入的字符串的末指针
+char lastdir[100];//当前目录
 
 char* argbuf[200];
 int argcnt = 0;
@@ -276,6 +278,75 @@ int shell_exit(int argc, char** argv)
 
 
 
+
+
+
+//-----------------------------CMD_ENTRY---------------------------------
+
+typedef int (*cmd_handle)(int, char**);
+
+//定义一个返回值为int，参数为int型与char**型的指针函数类型
+
+typedef struct
+{
+	const char* cmd;
+
+	cmd_handle handle;
+
+} CMD_ENTRY;
+
+//定义CMD_ENTRY结构体，对应操作名与其操作行为
+
+const CMD_ENTRY cmd_table[] = 
+{
+	{"exit", 	shell_exit},
+	{"cd", 		shell_cd},
+	{"echo", 	shell_echo},
+	{"export", 	shell_export},
+	{"history", shell_history},
+	{0, 0}
+};
+
+
+
+
+
+//----------------------------get_cmd_handle----------------------------------
+
+cmd_handle get_cmd_handle(const char* cmd)
+{
+	int i = 0;
+
+	while(cmd_table[i].cmd) {
+
+		if(strcmp(cmd_table[i].cmd, cmd) == 0)
+			return cmd_table[i].handle;
+			//当输入的命令与某操作名匹配时返回它的操作
+		i++;
+	}
+	return 0;
+}
+
+
+
+
+
+
+//----------------------------add_simple_arg----------------------------------
+
+ void add_simple_arg(const char* arg)
+{
+	
+	argbuf[arg_count] = (char*)malloc(strlen(arg)+1);
+	//分配arg加"\0"的长度的空间
+	
+	strcpy(argbuf[arg_count], arg);
+	//将arg字符串复制到argbuf中
+	
+	arg_count++;
+	argbuf[arg_count] = 0;
+
+}
 
  
 
