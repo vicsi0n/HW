@@ -152,11 +152,16 @@ int shell_cd(int argc, char** argv)
 	extern char lastdir[];
 
 	if(argc == 1) {
+
 		if(!(dir = getenv("HOME"))) {
 			printf("cd: %s\n", strerror(errno));
 			return -1;
 		}
+
+
 	} else if(argc == 2) {
+
+
 		if(strcmp(argv[1], "-") == 0) {
 			dir = lastdir;
 		} else if(strcmp(argv[1], "~") == 0) {
@@ -167,6 +172,8 @@ int shell_cd(int argc, char** argv)
 		} else
 			dir = argv[1];
 	} else {
+
+
 		printf("Usage: cd [dir]\n");
 		return -1;
 	}
@@ -192,7 +199,10 @@ int shell_cd(int argc, char** argv)
 	int j;
 	int argn = 0;
 	int arge = 0;
+
 	if(argv[1]) {
+
+
 		if(strcmp(argv[1], "-n") == 0) {
 			argn = 1;
 			i = 2;
@@ -204,6 +214,8 @@ int shell_cd(int argc, char** argv)
 			i = 2;
 		}
 	}
+
+
 	j = i;
 	while(argv[i]) {
 		if(i > j)
@@ -222,13 +234,20 @@ int shell_cd(int argc, char** argv)
  
 //-------------------------------导入或显示环境变量-------------------------------
 
+
 int shell_export(int argc, char** argv)
 {
+
+
 	int i = 1;
 	char* p;
 	while(argv[i]) {
+
+
 		if((p = strchr(argv[i], '='))) {
 			*p = 0;
+
+
 			if(strpbrk(argv[i], "~`!@#$%^&*()-_+=|\\{}[];:'\"<>,.?/")) {
 				*p = '=';
 				printf("export: %s: not a valid indentifier\n", argv[i]);
@@ -251,6 +270,7 @@ int shell_export(int argc, char** argv)
  void reset_args()
 {
 	int i;
+
 	for(i = 0; i < argcnt; i++) {
 		free(argbuf[i]);
 		argbuf[i] = 0;
@@ -266,7 +286,9 @@ int shell_export(int argc, char** argv)
 
 int shell_exit(int argc, char** argv)
 {
+
 	int val = 0;
+
 	if(argc > 1)
 		val = atoi(argv[1]);
 	reset_args();
@@ -281,7 +303,7 @@ int shell_exit(int argc, char** argv)
 
 
 
-//-----------------------------CMD_ENTRY---------------------------------
+//-----------------------------构建CMD_ENTRY结构体---------------------------------
 
 typedef int (*cmd_handle)(int, char**);
 
@@ -311,9 +333,9 @@ const CMD_ENTRY cmd_table[] =
 
 
 
-//----------------------------get_cmd_handle----------------------------------
+//----------------------------获取handle----------------------------------
 
-cmd_handle get_cmd_handle(const char* cmd)
+cmd_handle get_handle(const char* cmd)
 {
 	int i = 0;
 
@@ -331,14 +353,13 @@ cmd_handle get_cmd_handle(const char* cmd)
 
 
 
+//----------------------------记录符号参数----------------------------------
 
-//----------------------------add_simple_arg----------------------------------
-
- void add_simple_arg(const char* arg)
+ void add_symbolArg(const char* arg)
 {
 	
 	argbuf[arg_count] = (char*)malloc(strlen(arg)+1);
-	//分配arg加"\0"的长度的空间
+	//给argbuf分配空间
 	
 	strcpy(argbuf[arg_count], arg);
 	//将arg字符串复制到argbuf中
@@ -348,6 +369,64 @@ cmd_handle get_cmd_handle(const char* cmd)
 
 }
 
- 
+
+
+
+//----------------------------记录普通参数----------------------------------
+
+ void add_arg(const char* xarg)
+{
+	char* arg;
+	char buf[200];
+	char xbuf[200];
+	int i,j,k;
+
+	int len = strlen(xarg);
+	
+	k = 0;
+
+	for(i = 0; i < len; i++) {
+		
+		if(xarg[i] == '$') {
+
+
+			if(xarg[i+1] == '$') {
+				int pid = getpid();
+				sprintf(buf+k, "%d", pid);
+				k = strlen(buf);
+				i++;
+
+			} else if(xarg[i+1] == 0){
+				buf[k] = '$';
+				k++;
+				break;
+
+			} else {
+
+				for(j = i+1; j < len; j++) {
+					if(xarg[j] == '$') 
+						break;
+					xbuf[j-i-1] = xarg[j];
+				}
+
+				xbuf[j-i-1] = 0;
+				i = j-1;
+
+				if((arg = getenv(xbuf))) {
+					strcpy(buf+k, arg);
+					k += strlen(arg);
+				}
+			}
+			
+		} else {
+			buf[k] = xarg[i];
+			k++; 
+		}
+	}
+	buf[k] = 0;
+	if(k > 0)
+		add_symbolArg(buf);
+}
+
 
 
