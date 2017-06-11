@@ -1,1 +1,1 @@
-CC = gccCFLAGS = -g -WallOBJ = shell.c lex.yy.cFLAGS = -lfl -lreadline -ltermcapall:	@flex lex.l	@$(CC) $(CFLAGS) -o shell $(OBJ) $(FLAGS)clean:	@rm shell lex.yy.c
+CC = gccCFLAGS = -g -WallOBJ = Shell.c lex.yy.cFLAGS = -lfl -lreadline -ltermcapall:	@flex lex.l	@$(CC) $(CFLAGS) -o shell $(OBJ) $(FLAGS)clean:	@rm shell lex.yy.c
