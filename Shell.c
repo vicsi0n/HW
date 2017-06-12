@@ -16,7 +16,7 @@ char lastdir[100];//记录当前路径
 
 char* argbuf[200];//储存输入参数
 int arg_count = 0;//储存的次数
-
+int backf;//后台标志
 
 
 
@@ -92,13 +92,22 @@ int main()
 	//printf("%s",prompt);
 	init_lastdir();//初始化lastdir，记录当前路径
 
-	history_setup();//读取保存的历史记录	
+	history_setup();//读取保存的历史记录
+
+
 	while(1)
   {
-
+  	
+  	
   	set_prompt(prompt);//创建提示符
 	input = readline(prompt);//读取提示符后的输入字符串
 
+	if (backf==1)
+  	{
+  		printf("后台进程...[Done]\n");	
+  	}
+
+	backf=0;
 	//printf("%s\n",input);
 
  		if (!input)//读入EOF时，input为null，终止程序
@@ -175,8 +184,8 @@ int shell_cd(int argc, char** argv)
 	
 
 	if(argc == 1) {//如果只有一个参数，即只有cd
-		if(!(dir = getenv("HOME"))) {
-			printf("cd: %s\n", strerror(errno));//环境变量HOME为空时报错
+		if(!(dir = getenv("HOME"))) {//只输入cd时 进入home目录
+			printf("cd: %s\n", strerror(errno));//找不到HOME环境变量时报错
 			return -1;
 		}
 	} 
@@ -188,7 +197,7 @@ int shell_cd(int argc, char** argv)
 
 		} else if(strcmp(argv[1], "~") == 0) {
 
-			if(!(dir = getenv("HOME"))) {//此时dir赋为上环境变量的HOME路径
+			if(!(dir = getenv("HOME"))) {//此时dir为环境变量的HOME路径,即进入home目录
 
 				printf("cd: %s\n", strerror(errno));//环境变量HOME为空时报错
 				return -1;
@@ -324,7 +333,7 @@ int shell_export(int argc, char** argv)
 
 int shell_exit(int argc, char** argv)
 {
-	
+
 	int val = 0;
 	if(argc > 1)
 		val = atoi(argv[1]);
@@ -428,7 +437,10 @@ cmd_handle get_handle(const char* cmd)
 
 	for(i = 0; i < len; i++) {
 		
-
+		if(inputArg[i] == '&') {
+			backf = 1;
+			continue;
+		}
 		/////////////////////////该段输入参数的开头含$时
 		if(inputArg[i] == '$') {//inputArg为该小段参数的字符串数组
 
@@ -492,7 +504,7 @@ cmd_handle get_handle(const char* cmd)
 	if(k > 0){
 
 		argbuf[arg_count] = (char*)malloc(strlen(buf)+1);
-		//给buf分配空间
+		//给argbuf分配空间
 	
 		strcpy(argbuf[arg_count],buf);
 		//将buf字符串复制到argbuf中
@@ -507,7 +519,7 @@ cmd_handle get_handle(const char* cmd)
 //----------------------------检查外部命令的文件是否存在----------------------------------
 
 
- int file_exist(const char* file, char* buffer)
+ int file_exist(const char* file_name, char* buffer)
 {
 	int i = 0;
 	const char* p;
@@ -525,7 +537,7 @@ cmd_handle get_handle(const char* cmd)
 
 			buffer[i++] = '/';//路径补充斜杠后面好加文件名
 			buffer[i] = 0;
-			strcat(buffer, file);//将执行程序文件的最终路径补充完整
+			strcat(buffer, file_name);//将执行程序文件的最终路径补充完整
 			if(access(buffer, F_OK) == 0)//如果该文件存在返回1
 				return 1;
 			i = 0;//每一个路径检查完i归零，再开始记录下一个路径地址循环
@@ -657,7 +669,7 @@ int shell_redirect(int argc, char** argv, int* re)
 	}
 	
 	
-	if((pid = fork()) == 0) {//子进程
+	if((pid = fork()) == 0) {//有管道时创建子进程
 		
 
 		int redirect = 0;
@@ -734,12 +746,20 @@ int shell_redirect(int argc, char** argv, int* re)
     
     }
 
-	waitpid(pid, &status, 0);
+
+
+    if (pid>0)
+    {
+    	if (backf==0)
+    	{
+    		waitpid(pid, &status, 0);
+
+    	}
+	}
 
 	if(postfd) { 
 		close(postfd[1]); //关闭后管道
 	}
-
 	//恢复默认stdin、stdout
 	dup2(oldStdin, STDIN_FILENO);
 	dup2(oldStdout, STDOUT_FILENO);
