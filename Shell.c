@@ -2,6 +2,7 @@
 #include "include.h"
 
 
+
 extern void yylex();
 
 int get_current_dir_name();//获得当前路径
@@ -11,7 +12,7 @@ char *current_dir;//获得当前路径
 char buf[BUFSIZ];//BUFSIZ为系统默认的缓冲区大小。
 char* input_start;//输入的字符串的首指针
 char* input_end;//输入的字符串的末指针
-char lastdir[100];//当前目录
+char lastdir[100];//记录当前路径
 
 char* argbuf[200];//储存输入参数
 int arg_count = 0;//储存的次数
@@ -26,9 +27,9 @@ void set_prompt(char* prompt){
 
 	current_dir=getcwd(NULL,100);//获取当前路径
 
-	user = getpwuid(getuid());//获得当前用户名
+	user = getpwuid(getuid());//获得当前用户的password结构
 
-	sprintf(prompt,"%s@%s:~$ ",user->pw_name,current_dir);//显示提示符,用到了pwd.h
+	sprintf(prompt,"%s@%s:~$ ",user->pw_name,current_dir);//将用户名与当前路径构成提示符
 }
 
 
@@ -48,27 +49,30 @@ void init_lastdir()
 
 void history_setup()//读取历史命令
 {
-	using_history();
+	using_history();//初始化相关变量
 
-	stifle_history(50);
+	stifle_history(30);//只读取暂存前30条历史记录
 
-	read_history("/tmp/shell_history");	
+	read_history("/tmp/shell_history");	//读取历史记录文件
 }
 
-void history_finish()//存入历史命令
+
+void history_save()//存入历史命令
 {
-	append_history(history_length, "/tmp/shell_history");
+	write_history("/tmp/shell_history");//将历史命令写入文件
+	//append_history(history_length, "/tmp/shell_history");
 
-	history_truncate_file("/tmp/shell_history", history_max_entries);
+	history_truncate_file("/tmp/shell_history", history_max_entries);//设置
 }
+
 
 void display_history()//显示历史命令
 {
-	HIST_ENTRY** h = history_list();
+	HIST_ENTRY** h = history_list();//获取当前历史记录信息
 	if(h) {
 		int i = 0;
 		while(h[i]) {
-			printf("%d: %s\n", i, h[i]->line);
+			printf("%d: %s\n", i, h[i]->line);//显示全部记忆的历史记录
 			i++;
 		}
 	}
@@ -88,35 +92,41 @@ int main()
 	//printf("%s",prompt);
 	init_lastdir();//初始化lastdir，记录当前路径
 
-	history_setup();	
+	history_setup();//读取保存的历史记录	
 	while(1)
   {
 
   	set_prompt(prompt);//创建提示符
-	input = readline(prompt);//显示提示符并读取输入
+	input = readline(prompt);//读取提示符后的输入字符串
 
+	//printf("%s\n",input);
 
- 		if (!input)//检测EOF（-1）终止程序
+ 		if (!input)//读入EOF时，input为null，终止程序
  		{
+ 			//printf("xxx\n");
  			break; 
  		}
  		else if (*input)
  		{
+
  			add_history(input);//将输入添加到历史命令记录
  		}
- 		strcpy(buf,input);//将输入传给buf
- 		strcat(buf,"\n");
 
- 		//free(input);
+ 		strcpy(buf,input);//将输入的字符串传给buf
+ 		strcat(buf,"\n");//readline函数遇回车返回结果，但不包含换行符，手动添加便于lex判断
+ 		//printf("%s", buf);
+ 		free(input);//释放input
 
  		input_start = buf;
 		input_end = buf+strlen(buf);
 		//printf("=%s+\n",input_start);
+	
+	history_save();//存入历史命令
 
 	yylex();//进行词法分析
   }
    		
-  	history_finish();//存入历史命令
+  	
 	
 	return 0;
 }
@@ -131,14 +141,15 @@ int main()
 
 	int n;
 
-	n = (max < (input_end-input_start)) ? max : (input_end-input_start);
+	n = (max < (input_end-input_start)) ? max : (input_end-input_start);//取两者的较小者
+	//一次读取量应该小于YY_INPUT的max值，剩下的再次读取分析，所以取max与length的小者
 
 	if(n > 0) {
-		memcpy(buf, input_start, n);
+		memcpy(buf, input_start, n);//将要分析长度的数据传给buf
 
-		input_start += n;
+		input_start += n;//下次分析读取时的的起始指针变更
 	}
-	return n;
+	return n;//返回分析长度
 }
 
 
@@ -163,35 +174,42 @@ int shell_cd(int argc, char** argv)
 	char cwd[100];
 	
 
-	if(argc == 1) {
+	if(argc == 1) {//如果只有一个参数，即只有cd
 		if(!(dir = getenv("HOME"))) {
-			printf("cd: %s\n", strerror(errno));
+			printf("cd: %s\n", strerror(errno));//环境变量HOME为空时报错
 			return -1;
 		}
+	} 
 
-	} else if(argc == 2) {
-		if(strcmp(argv[1], "-") == 0) {
-			dir = lastdir;
+	else if(argc == 2) {//如果有2个参数 即cd和其他
+
+		if(strcmp(argv[1], "-") == 0) {//argv[1]第二个参数，即cd后一个参数
+			dir = lastdir;//此时dir赋为上一次的路径
+
 		} else if(strcmp(argv[1], "~") == 0) {
-			if(!(dir = getenv("HOME"))) {
-				printf("cd: %s\n", strerror(errno));
+
+			if(!(dir = getenv("HOME"))) {//此时dir赋为上环境变量的HOME路径
+
+				printf("cd: %s\n", strerror(errno));//环境变量HOME为空时报错
 				return -1;
 			}
 		} else
-			dir = argv[1];
+			dir = argv[1];//将dir设置为参数2里的路径
+
 	} else {
-		printf("Usage: cd [dir]\n");
+		printf("cd用法: cd 路径\n");
 		return -1;
 	}
 
-	getcwd(cwd, 99); 
+	getcwd(cwd, 99); //获取当前路径
 
-	if(chdir(dir) == -1) {
+	if(chdir(dir) == -1) {//改变当前工作路径，若错误显示提示
 		printf("cd: %s\n", strerror(errno));
 		return -1;
 	}
 
-	strcpy(lastdir, cwd);
+	strcpy(lastdir, cwd);//传值刷新最近路径
+
 	return 0;
 }
 
@@ -206,34 +224,29 @@ int shell_cd(int argc, char** argv)
 {
 	int i = 1;
 	int j;
+
 	int argn = 0;
-	int arge = 0;
+	
 
 	if(argv[1]) {
 
-		if(strcmp(argv[1], "-n") == 0) {
+		if(strcmp(argv[1], "-n") == 0) {//echo -n 不输出末尾的换行符
 			argn = 1;
 			i = 2;
-		} else if(strcmp(argv[1], "-e") == 0) {
-			arge = 1;
-			i = 2;
-		} else if((strcmp(argv[1], "-ne") == 0) || (strcmp(argv[1], "-en") == 0)) {
-			argn = arge = 1;
-			i = 2;
-		}
+		} 
 	}
 
 	j = i;
 	while(argv[i]) {
 
 		if(i > j)
-			printf(" %s", argv[i]);
+			printf(" %s", argv[i]);//后面每个字符串之间加空格
 		else 
-			printf("%s", argv[i]);
+			printf("%s", argv[i]);//输出的第一个字符串顶格
 		i++;
 	}
 
-	if(argn == 0)
+	if(argn == 0)//echo -n 不输出末尾的换行符
 		printf("\n");
 	
 	return 0;
@@ -248,21 +261,36 @@ int shell_export(int argc, char** argv)
 	int i = 1;
 	char* p;
 
+
 	while(argv[i]) {
 
 		if((p = strchr(argv[i], '='))) {
 			*p = 0;
+			
+			char* tem;
+			tem=p-1;
+			//printf("%s\n",argv[i]);
 
-			if(strpbrk(argv[i], "~`!@#$%^&*()-_+=|\\{}[];:'\"<>,.?/")) {
-				*p = '=';
-				printf("export: %s: not a valid indentifier\n", argv[i]);
-				i++;
+			if (strcmp(tem,"+")==0)//当为 += 号时，新设置的环境变量为 旧环境变量后面接新环境变量
+			{
 
-				continue;
-			} 
+				char* path;
+			char* new_path;
 
-			if(setenv(argv[i], p+1, 1) == -1) 
+			*(p-1)=0;//将+处置0，让argv[i]中只剩下环境变量名
+			path = getenv(argv[i]);
+			path = strcat(path,":");//加:给环境变量分段
+			new_path = strcat(path,p+1);
+
+			if(setenv(argv[i],new_path, 1) == -1) 
 				printf("export: %s\n", strerror(errno));
+
+			}else{//当为 = 
+			if(setenv(argv[i],p+1, 1) == -1) 
+				printf("export: %s\n", strerror(errno));
+			}
+
+			
 			*p = '=';
 		}
 
@@ -281,6 +309,7 @@ int shell_export(int argc, char** argv)
 	for(i = 0; i < arg_count; i++) {
 
 		free(argbuf[i]);
+
 		argbuf[i] = 0;
 	}
 
@@ -295,11 +324,14 @@ int shell_export(int argc, char** argv)
 
 int shell_exit(int argc, char** argv)
 {
+	
 	int val = 0;
 	if(argc > 1)
 		val = atoi(argv[1]);
+
 	reset_args();
-	history_finish();
+	history_save();
+
 	exit(val);
 	return 0;
 }
@@ -396,7 +428,9 @@ cmd_handle get_handle(const char* cmd)
 
 	for(i = 0; i < len; i++) {
 		
-		if(inputArg[i] == '$') {
+
+		/////////////////////////该段输入参数的开头含$时
+		if(inputArg[i] == '$') {//inputArg为该小段参数的字符串数组
 
 			if(inputArg[i+1] == '$') {
 			//$$,获取shell当前的进程ID号
@@ -440,7 +474,14 @@ cmd_handle get_handle(const char* cmd)
 				}
 			}
 			
-		} else {
+		} 
+
+		///////////////////////////////////////
+
+
+
+
+		else {
 			buf[k] = inputArg[i];
 			k++; 
 		}
@@ -471,10 +512,9 @@ cmd_handle get_handle(const char* cmd)
 	int i = 0;
 	const char* p;
 
-	//const char* path;
 
-	p = getenv("PATH");
-	//p = path;
+	p = getenv("PATH");//获取环境变量
+
 
 	while(*p != 0) {
 
@@ -533,7 +573,7 @@ int shell_redirect(int argc, char** argv, int* re)
 	//若存在重定向
 	if(redirect) {
 
-		if(argv[i+1]) {
+		if(argv[i+1]) { //i+1为重定向符后一个字符串
 
 			int fd;
 
@@ -543,7 +583,7 @@ int shell_redirect(int argc, char** argv, int* re)
 
 				if( fd == -1) {
 
-					fprintf(stderr, "%s或%s:不是有效文件名或不是有效指令\n", argv[i-1],argv[i+1]);
+					fprintf(stderr, "文件%s 打开失败或不是有效文件\n", argv[i+1]);
 					return 1;
 				}
 				dup2(fd, STDOUT_FILENO);//把输出重定向到fd标识的文件
@@ -555,7 +595,7 @@ int shell_redirect(int argc, char** argv, int* re)
 					
 					if(fd == -1) {
 
-						fprintf(stderr, "%s或%s:不是有效文件名或不是有效指令\n", argv[i-1],argv[i+1]);
+						fprintf(stderr, "文件%s 打开失败或不是有效文件\n", argv[i+1]);
 						return 1;
 				}
 				dup2(fd, STDIN_FILENO);//把输入重定向到fd标识的文件
@@ -563,7 +603,7 @@ int shell_redirect(int argc, char** argv, int* re)
 			}
 		} else {//重定向符号后为空
 
-			fprintf(stderr, "重定位符后 请输入有效文件名或有效指令\n");
+			fprintf(stderr, "请在重定位符后 输入有效文件名或有效指令\n");
 			return 1;
 		}
 	}
@@ -616,7 +656,7 @@ int shell_redirect(int argc, char** argv, int* re)
 		}
 	}
 	
-	//有管道时
+	
 	if((pid = fork()) == 0) {//子进程
 		
 
@@ -627,7 +667,9 @@ int shell_redirect(int argc, char** argv, int* re)
 			exit(1);
 		
 
-		////////////修改stdin与stdout
+
+
+////////////////////修改stdin与stdout
 
 		if(redirect != 1 && prefd) {//该段简单命令存在前管道且不存在重定向输入
 
@@ -665,18 +707,21 @@ int shell_redirect(int argc, char** argv, int* re)
 			printf("后管道前不能接重定向输出\n");
 			exit(0);
 		}
+////////////////////////////////
 
-		//////////
+
+
+
 
 
 
 		if((hd = get_handle(argv[0]))) {
 
-			(*hd)(argc, argv);
+			(*hd)(argc, argv);//执行该内部命令
 			exit(0);
 		}
 
-		char buffer[100];
+		char buffer[100];//file_exist返回的外部命令的路径
 
 		if(file_exist(argv[0], buffer)) {//判断输入指令是否存在相应的外部命令
 	
@@ -783,7 +828,7 @@ void shell_listCmd()
 
 	while(argbuf[i]) {
 	
-		if(strcmp(argbuf[i], ";") == 0) {//	 ;
+		if(strcmp(argbuf[i], ";") == 0) {//找到结束符;
 	
 			p = argbuf[i];//备份该处得指针
 
