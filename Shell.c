@@ -568,8 +568,8 @@ int shell_redirect(int argc, char** argv, int* re)
 
 		if(strcmp(argv[i], "<") == 0) {
 
-			redirect = 1;//1表示<输入重定向
-			argv[i] = 0;//2表示>输出重定向
+			redirect = 1;//1表示重定向输入，2表示重定向输出
+			argv[i] = 0;
 			break;
 
 		} else if(strcmp(argv[i], ">") == 0) {
@@ -640,6 +640,7 @@ int shell_redirect(int argc, char** argv, int* re)
 
 	int pid;
 	int status;
+
 	int oldStdout = dup(STDOUT_FILENO);		
 	int oldStdin = dup(STDIN_FILENO);
 	cmd_handle hd;
@@ -647,8 +648,22 @@ int shell_redirect(int argc, char** argv, int* re)
 	if(argc == 0)//传入参数为0时直接返回
 		return 0;
 
-	//无管道时
-	if(prefd == 0 && postfd == 0) {
+
+	if (prefd == 0 && postfd)
+	{
+		dup2(postfd[1],STDOUT_FILENO);
+	}
+	else if(prefd && postfd)
+	{
+		dup2(prefd[0],STDIN_FILENO);
+		dup2(postfd[1],STDOUT_FILENO);
+	}else if(prefd && postfd == 0){
+		
+		dup2(prefd[0],STDIN_FILENO);
+	}
+
+			//无管道时
+	else if(prefd == 0 && postfd == 0) {
 		
 		hd = get_handle(argv[0]);
 		
@@ -683,7 +698,7 @@ int shell_redirect(int argc, char** argv, int* re)
 
 ////////////////////修改stdin与stdout
 
-		if(redirect != 1 && prefd) {//该段简单命令存在前管道且不存在重定向输入
+		if(redirect != 1 && prefd) {//若前管道和输出重定向同时出现，优先处理输出重定向
 
 			close(prefd[1]);
 			
@@ -696,13 +711,8 @@ int shell_redirect(int argc, char** argv, int* re)
 			}
 		}
 
-		else if(redirect == 1 && prefd) {
-
-			printf("前管道后不能接重定向输入\n");
-			exit(0);
-		}
 		
-		else if(redirect != 2 && postfd) {//该段简单命令存在后管道且不存在重定向输出
+		else if(redirect != 2 && postfd) {//若前管道和输入重定向同时出现，优先处理输入重定向
 			close(postfd[0]);
 
 			if(postfd[1] != STDOUT_FILENO) {
@@ -714,11 +724,7 @@ int shell_redirect(int argc, char** argv, int* re)
 			}
 		}
 
-		else if(redirect == 2 && postfd) {
 
-			printf("后管道前不能接重定向输出\n");
-			exit(0);
-		}
 ////////////////////////////////
 
 
@@ -760,7 +766,7 @@ int shell_redirect(int argc, char** argv, int* re)
 	if(postfd) { 
 		close(postfd[1]); //关闭后管道
 	}
-	//恢复默认stdin、stdout
+	恢复默认stdin、stdout
 	dup2(oldStdin, STDIN_FILENO);
 	dup2(oldStdout, STDOUT_FILENO);
 
